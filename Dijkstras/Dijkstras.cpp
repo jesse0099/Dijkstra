@@ -5,12 +5,14 @@
 #include <vector>
 #include <algorithm>  
 #include <string>
+#include <unordered_map>
 
 using namespace std;
 
 #pragma region AVS
 /*
 	nv = non valid
+	nvk = non valid key
 	uv = unvisited
 	nd = non directed
 	idx = index
@@ -18,10 +20,13 @@ using namespace std;
 */
 #pragma endregion
 
+typedef unordered_map <string, vector<pair<string, int>>> Hash_Graph;
 
 const string NV_INDEX = "No se han indicado vertices validos";
+const string NVK = "No se han indicado llaves validas";
 const unsigned short int INFINITE = 9999;
 const short int NV_VERTEX = -1;
+
 
 #pragma region Vertices
 
@@ -85,6 +90,7 @@ class Graph {
 private:
 	size_t vertexes;
 	vector<Vertex> vertexes_list;
+	Hash_Graph hash_graph;
 	vector<vector<int>>  graph; 
 	void init_graph() {
 		graph.resize(vertexes);/*Rows - Origin*/
@@ -96,6 +102,10 @@ private:
 			}
 		}
 
+	}
+	void init_map_graph() {
+		for (auto x : vertexes_list)
+			hash_graph[x.get_tag()];
 	}
 	vector<vector<int>> init_nd_sd_matrix(int vertex_idx) {
 		int org_idx = vertex_idx;//Graph's Matrix row index
@@ -130,18 +140,41 @@ public:
 		}
 	}
 
+	void print_hash_graph() {
+		for (auto x : hash_graph) {
+			cout << "Vertex: " << x.first;
+			for (auto y : x.second)
+				cout << " (End: " << y.first << " , Weight: " << y.second << ") ";
+			cout << endl;
+		}
+	}
+
 	// :?) Perdon
 	void foo() {}
 
-	//If bidir is true: Non Directed graph (weight A->B [3] A<-B [3]) 
-	//Directed graph  (weight A->B [3] A<-B [?])) 
-	void add_edge(string vertex_a, string vertex_b, int weight, bool bidir = true) {
+	//If bidir is true: Edge (weight A->B [3] A<-B [3]) 
+	//Edge  (weight A->B [3] A<-B [?])) 
+	void add_edge(string vertex_a, string vertex_b, int weight, bool bidir = false) {
 		int v_a = vertex_index(vertex_a), v_b = vertex_index(vertex_b);
 		if (v_a > -1 && v_b > -1) {
-			bidir ? (graph[v_a][v_b] = weight, graph[v_b][v_a] = weight):  graph[v_a][v_b] = weight;
+			bidir ? (graph[v_a][v_b] = weight, graph[v_b][v_a] = weight) : graph[v_a][v_b] = weight;
 			return;
 		}
 		cout << NV_INDEX << endl;
+	}
+
+	//If bidir is true: Edge (weight map[A]->[B,3] map[B]->[A,3]) 
+	//Edge  (weight map[A]->[B,3] map[A]->[?]) 
+	void add_hash_edge(string vertex_a, string vertex_b, int weight, bool bidir = false) {
+		try
+		{
+			bidir ? (hash_graph[vertex_a].push_back(make_pair(vertex_b, weight)), hash_graph[vertex_b].push_back(make_pair(vertex_a, weight)))
+				: hash_graph[vertex_a].push_back(make_pair(vertex_b, weight));;
+		}
+		catch (const exception&)
+		{
+			cout << NVK << endl;
+		}
 	}
 
 	//Non Directed graph - Dijkstra shortest path. From vertex org to every other one (Vertex Tag)
@@ -236,7 +269,6 @@ public:
 	}
 
 	//Row index of the matrix's unvisited shortest registered distance (Dijkstra - Non Directed)
-
 	int get_uv_known_sd_vertex(vector<vector<int>> info_table, vector<int> visited) {
 		int minimum = INFINITE, min_index = NV_VERTEX, idx = 0;
 		for (auto x : info_table) {
@@ -265,14 +297,17 @@ public:
 		return distances;
 	}
 
-	Graph(vector<Vertex> p_vertexes ) {
+	Graph(vector<Vertex> p_vertexes, bool init_hash_graph = false) {
 		vertexes_list = p_vertexes;
 		vertexes = vertexes_list.size();
-		init_graph();
+		init_hash_graph ? init_map_graph() : init_graph();
 	}
+	
 	Graph() {}
 
-
+	Hash_Graph get_hash_graph () {
+		return hash_graph;
+	}
 	vector<vector<int>> get_graph() {
 		return graph;
 	}
@@ -291,6 +326,9 @@ public:
 	void set_vertexes(int p_vertexes) {
 		vertexes = p_vertexes;
 	}
+	void set_hash_graph(Hash_Graph p_hash_graph) {
+		hash_graph = p_hash_graph;
+	}
 
 };
 
@@ -308,32 +346,44 @@ int main()
 	vertexes.push_back(Vertex("E"));
 	vertexes.push_back(Vertex("F"));
 
-	
-	graph = Graph(vertexes);
+	graph = Graph(vertexes, true);
 
-	graph.add_edge("A", "B", 6, false);
-	graph.add_edge("A","D",1);
-	//graph.add_edge("B","D",2);
-	graph.add_edge("B","E",2);
-	graph.add_edge("B","C",5);
-	//graph.add_nd_edge("B","F",5);
-	graph.add_edge("C","E",5);
-	graph.add_edge("E","D",1);
 
-	//graph.nd_shortest_paths("A");
+	graph.add_hash_edge("A", "B", 6, true);
+	graph.add_hash_edge("A", "D", 1, true);
+	graph.add_hash_edge("B", "D", 2, true);
+	graph.add_hash_edge("B", "E", 2, true);
+	graph.add_hash_edge("C", "B", 5, true);
+	graph.add_hash_edge("C", "E", 5, true);
+	graph.add_hash_edge("D", "E", 1, true);
 
-	//graph.get_vertexes_list()[graph.vertex_index("A")].get_nd_shortest_paths().size() > 0 ? cout << "Tabla Creada" << endl : cout << "Tabla No Creada" << endl;
-	
-	vector<int> path = graph.nd_shortest_path("B","A");
-	int idx = 0;
-	for (auto x : path) {
-		idx == 0 ? cout << "Shortest Distance " << x << endl : (idx == path.size()-1) ? cout << graph.get_vertexes_list()[x].get_tag() << endl 
-			: cout << graph.get_vertexes_list()[x].get_tag() <<"->";
-		idx++;
-	}
-	cout << endl;
+	graph.print_hash_graph();
 
-	graph.print_graph();
+#pragma region Adjacency matrix
+	//graph.add_edge("A", "B", 6, true);
+	//graph.add_edge("A", "D", 1, true);
+	//graph.add_edge("B", "D", 2, true);
+	//graph.add_edge("B", "E", 2, true);
+	//graph.add_edge("C", "B", 5, true);
+	//graph.add_edge("C", "E", 5, true);
+	//graph.add_edge("D", "E", 1, true);
+	//graph.add_edge("D", "B", 1);
+
+
+	//vector<int> path = graph.nd_shortest_path("B", "D");
+	//int idx = 0;
+	//for (auto x : path) {
+	//	idx == 0 ? cout << "Shortest Distance " << x << endl : (idx == path.size() - 1) ? cout << graph.get_vertexes_list()[x].get_tag() << endl
+	//		: cout << graph.get_vertexes_list()[x].get_tag() << "->";
+	//	idx++;
+	//}
+	//cout << endl;
+
+	//graph.print_graph();
+#pragma endregion
+
+
+
 
 }
 
