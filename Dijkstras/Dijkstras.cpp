@@ -1,4 +1,6 @@
-// Dijkstras.cpp : Dijkstras con matriz adyacente estatica. Grafo pesado y no orientado 
+// Dijkstras.cpp : 
+//Dijkstras con matriz adyacente para un grafo orientado y pesado
+//
 //(Adaptable)
 
 #include <iostream>
@@ -6,6 +8,7 @@
 #include <algorithm>  
 #include <string>
 #include <unordered_map>
+#include <queue>
 
 using namespace std;
 
@@ -21,6 +24,8 @@ using namespace std;
 #pragma endregion
 
 typedef unordered_map <string, vector<pair<string, int>>> Hash_Graph;
+typedef pair<int, int> int_pair;
+typedef priority_queue <int_pair, vector<int_pair>, greater<int_pair>> min_heap_pair_queue;
 
 const string NV_INDEX = "No se han indicado vertices validos";
 const string NVK = "No se han indicado llaves validas";
@@ -33,7 +38,7 @@ const short int NV_VERTEX = -1;
 class Vertex {
 private:
 	unsigned short int index;
-	vector<vector<int>> nd_shortest_paths;
+	vector<vector<int>> shortest_paths;
 	string tag;
 
 public:
@@ -41,18 +46,18 @@ public:
 	//Return a vector where first[0] space is the shortest distance
 	//The remaining spaces represent the vertexes indexes to achieve the shortest distance
 	//Vertexes indexes go from start to end
-	vector<int> nd_shortest_path(int end_idx) {
+	vector<int> shortest_path(int end_idx) {
 		vector<int> path;
 		int objective = end_idx, previous;
 		previous = objective;
 		while (true) {
-			previous = nd_shortest_paths[objective][1];
+			previous = shortest_paths[objective][1];
 			if (previous == NV_VERTEX)
 				break;
 			path.insert(path.begin(),previous);
 			objective = previous;
 		}
-		path.insert(path.begin(), nd_shortest_paths[end_idx][0]);
+		path.insert(path.begin(), shortest_paths[end_idx][0]);
 		path.push_back(end_idx);
 		return path;
 	}
@@ -66,8 +71,8 @@ public:
 	string get_tag() {
 		return tag;
 	}
-	vector<vector<int>> get_nd_shortest_paths() {
-		return nd_shortest_paths;
+	vector<vector<int>> get_shortest_paths() {
+		return shortest_paths;
 	}
 	int get_index(){
 		return index;
@@ -78,8 +83,8 @@ public:
 	void set_tag(string n_tag) {
 		tag = n_tag;
 	}
-	void set_nd_shortest_path(vector<vector<int>> p_nd_shortest_path) {
-		nd_shortest_paths = p_nd_shortest_path;
+	void set_shortest_path(vector<vector<int>> p_nd_shortest_path) {
+		shortest_paths = p_nd_shortest_path;
 	}
 };
 
@@ -107,7 +112,7 @@ private:
 		for (auto x : vertexes_list)
 			hash_graph[x.get_tag()];
 	}
-	vector<vector<int>> init_nd_sd_matrix(int vertex_idx) {
+	vector<vector<int>> init_sd_matrix(int vertex_idx) {
 		int org_idx = vertex_idx;//Graph's Matrix row index
 
 		//n(vertexes) * m(info cols (2))
@@ -177,66 +182,69 @@ public:
 		}
 	}
 
-	//Non Directed graph - Dijkstra shortest path. From vertex org to every other one (Vertex Tag)
-	void nd_shortest_paths(string vertex, int vertex_idx = -1) {
+	//Dijkstra shortest path. From vertex org to every other one (Vertex Tag)
+	void shortest_paths(string vertex, int vertex_idx = -1) {
 		//Check if vertex_index returned something != -1
 		int start_vertex = (vertex_idx != -1) ? vertex_idx : vertex_index(vertex);
 		if (start_vertex != -1) {
-			vector<vector<int>> info_table = init_nd_sd_matrix(start_vertex);
+			vector<vector<int>> info_table = init_sd_matrix(start_vertex);
 			
 			int current_vertex;
 			vector<int> visited_vertexes;
-			vector<int> unvisited_vertexes;
 			vector<int> current_neighbors;
 			vector<int> current_neighbors_distances;
-			
-			//Loading all vertexes to unvisited list
-			for (auto x : vertexes_list)
-					unvisited_vertexes.push_back(x.get_index());
+
+			//min-heap priority queue, where the elements are represented by a pair
+			//of integers, being the first one the minimum distance from the start to
+			//a vertex, represented by the second value
+			min_heap_pair_queue m_q;
+
+			//Loading priority queue
+			m_q.push(make_pair(0,start_vertex));
 
 			//Visiting all vertexes
-			while (unvisited_vertexes.size() != 0) {
-				unvisited_vertexes.size() == vertexes ?  current_vertex = start_vertex : current_vertex = get_uv_known_sd_vertex(info_table,visited_vertexes);
+			while (!m_q.empty()) {
 				
-				//No more reachable unvisited vertexes 
-				if (current_vertex == NV_VERTEX)
-					break;
+				current_vertex = m_q.top().second;
 
 				//Current vertex unvisited neighbors 
 				current_neighbors = get_current_uv_neighbors(current_vertex, visited_vertexes);
 
+
 				//Distances from start vertex to neighbors 
 				current_neighbors_distances = get_current_uv_neighbors_sd(current_vertex, current_neighbors, info_table);
 
-				update_sd(current_vertex,current_neighbors, current_neighbors_distances, info_table);
+				m_q.pop();
 
+				update_sd(current_vertex,current_neighbors, current_neighbors_distances, info_table, m_q);
+			
 				visited_vertexes.push_back(current_vertex);
-				unvisited_vertexes.erase(find(unvisited_vertexes.begin(), unvisited_vertexes.end(),current_vertex));
+
 			}
 			//Update vertex nd_shortest_paths
-			vertexes_list[start_vertex].set_nd_shortest_path(info_table);
+			vertexes_list[start_vertex].set_shortest_path(info_table);
 			return;
 		}
 		cout << NV_INDEX << endl;
 	}
 	
 	//The shortest path from the start vertex to end vertex
-	vector<int> nd_shortest_path(string start_vertex, string end_vertex) {
+	vector<int> shortest_path(string start_vertex, string end_vertex) {
 		int start_vertex_idx = vertex_index(start_vertex), end_vertex_idx;
 		vector<int> error_return;
 		if (start_vertex_idx != -1) {
 			end_vertex_idx = vertex_index(end_vertex);
 			if (end_vertex_idx != -1) {
-				if (vertexes_list[start_vertex_idx].get_nd_shortest_paths().size() > 0) {
+				if (vertexes_list[start_vertex_idx].get_shortest_paths().size() > 0) {
 					//Read Table
-					return vertexes_list[start_vertex_idx].nd_shortest_path(end_vertex_idx);
+					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
 				}
 				else {
 					//Load Table
-					nd_shortest_paths("NAN", start_vertex_idx);
+					shortest_paths("NAN", start_vertex_idx);
 
 					//Read Table
-					return vertexes_list[start_vertex_idx].nd_shortest_path(end_vertex_idx);
+					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
 				}
 			}
 			else {
@@ -248,13 +256,15 @@ public:
 		}
 	}
 
-	//Update non directed graph infotable 
-	void update_sd(int pre_vertex,vector<int> neighbors, vector<int> neighbors_distances, vector<vector<int>> &info_table) {
+	//Update infotable 
+	void update_sd(int pre_vertex,vector<int> neighbors, vector<int> neighbors_distances, vector<vector<int>> &info_table, min_heap_pair_queue &m_q) {
 		int idx = 0;
 		for (auto x : neighbors) {
+			//if there is a shorter path to a vertex, then update the info table and add the registry to the priority queue
 			if (neighbors_distances[idx] < info_table[x][0]) {
 				info_table[x][0] = neighbors_distances[idx];
 				info_table[x][1] = pre_vertex;
+				m_q.push(make_pair(info_table[x][0], x));
 			}
 			idx++;
 		}
@@ -268,7 +278,7 @@ public:
 		return -1;
 	}
 
-	//Row index of the matrix's unvisited shortest registered distance (Dijkstra - Non Directed)
+	//Row index of the matrix's unvisited shortest registered distance (Dijkstra)
 	int get_uv_known_sd_vertex(vector<vector<int>> info_table, vector<int> visited) {
 		int minimum = INFINITE, min_index = NV_VERTEX, idx = 0;
 		for (auto x : info_table) {
@@ -285,6 +295,7 @@ public:
 			graph[current_idx][i] > 0 && find(visited.begin(),visited.end(), i) == visited.end() ? neighbours.push_back(i) : foo();
 		return neighbours;
 	}
+
 
 	//Shortest distances from start to neighbors  of the current vertex 
 	vector<int> get_current_uv_neighbors_sd(int current_idx,vector<int> neighbors, vector<vector<int>> infotable) {
@@ -337,6 +348,7 @@ public:
 
 int main()
 {
+
 	Graph graph;
 	vector<Vertex> vertexes;
 	vertexes.push_back(Vertex("A"));
@@ -346,40 +358,48 @@ int main()
 	vertexes.push_back(Vertex("E"));
 	vertexes.push_back(Vertex("F"));
 
-	graph = Graph(vertexes, true);
 
 
-	graph.add_hash_edge("A", "B", 6, true);
-	graph.add_hash_edge("A", "D", 1, true);
-	graph.add_hash_edge("B", "D", 2, true);
-	graph.add_hash_edge("B", "E", 2, true);
-	graph.add_hash_edge("C", "B", 5, true);
-	graph.add_hash_edge("C", "E", 5, true);
-	graph.add_hash_edge("D", "E", 1, true);
 
-	graph.print_hash_graph();
+#pragma region Adjacency List
+	//graph = Graph(vertexes, true);
+	//graph.add_hash_edge("A", "B", 6, true);
+	//graph.add_hash_edge("A", "D", 1, true);
+	//graph.add_hash_edge("B", "D", 2, true);
+	//graph.add_hash_edge("B", "E", 2, true);
+	//graph.add_hash_edge("C", "B", 5, true);
+	//graph.add_hash_edge("C", "E", 5, true);
+	//graph.add_hash_edge("D", "E", 1, true);
+
+	//graph.print_hash_graph();
+
+#pragma endregion
+
+
+
 
 #pragma region Adjacency matrix
-	//graph.add_edge("A", "B", 6, true);
-	//graph.add_edge("A", "D", 1, true);
-	//graph.add_edge("B", "D", 2, true);
-	//graph.add_edge("B", "E", 2, true);
-	//graph.add_edge("C", "B", 5, true);
-	//graph.add_edge("C", "E", 5, true);
-	//graph.add_edge("D", "E", 1, true);
+	graph = Graph(vertexes);
+	graph.add_edge("A", "B", 6, true);
+	graph.add_edge("A", "D", 1, true);
+	graph.add_edge("B", "D", 2);
+	graph.add_edge("B", "E", 2, true);
+	graph.add_edge("C", "B", 5, true);
+	graph.add_edge("C", "E", 5, true);
+	graph.add_edge("D", "E", 1, true);
 	//graph.add_edge("D", "B", 1);
 
 
-	//vector<int> path = graph.nd_shortest_path("B", "D");
-	//int idx = 0;
-	//for (auto x : path) {
-	//	idx == 0 ? cout << "Shortest Distance " << x << endl : (idx == path.size() - 1) ? cout << graph.get_vertexes_list()[x].get_tag() << endl
-	//		: cout << graph.get_vertexes_list()[x].get_tag() << "->";
-	//	idx++;
-	//}
-	//cout << endl;
+	vector<int> path = graph.shortest_path("B", "A");
+	int idx = 0;
+	for (auto x : path) {
+		idx == 0 ? cout << "Shortest Distance " << x << endl : (idx == path.size() - 1) ? cout << graph.get_vertexes_list()[x].get_tag() << endl
+			: cout << graph.get_vertexes_list()[x].get_tag() << "->";
+		idx++;
+	}
+	cout << endl;
 
-	//graph.print_graph();
+	graph.print_graph();
 #pragma endregion
 
 
