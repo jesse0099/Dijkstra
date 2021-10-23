@@ -45,6 +45,7 @@ private:
 	vector<vector<int>> shortest_paths;
 	//key = Row, pair = (Weight, Pre Vertex)
 	unordered_map<string, wt_pair> hash_shortest_paths;
+	unordered_map<string, vector<vector<wt_pair>>>  possible_paths;
 	string tag;
 
 public:
@@ -99,6 +100,9 @@ public:
 	unordered_map<string, wt_pair> get_hash_shortest_paths() {
 		return hash_shortest_paths;
 	}
+	unordered_map<string, vector<vector<wt_pair>>> get_possible_paths() {
+		return possible_paths;
+	}
 	int get_index(){
 		return index;
 	}
@@ -113,6 +117,16 @@ public:
 	}
 	void set_hash_shortest_path(unordered_map<string, wt_pair> p_hash_shortest_paths) {
 		hash_shortest_paths = p_hash_shortest_paths;
+	}
+	void set_possible_paths(unordered_map<string, vector<vector<wt_pair>>> p_possible_paths) {
+		possible_paths = p_possible_paths;
+	}
+	void add_possible_path_key(string destination) {
+		vector<vector<wt_pair>> tmp;
+		possible_paths.insert(make_pair(destination, tmp));
+	}
+	void add_possible_path(string key, vector<wt_pair> path) {
+		possible_paths.at(key).push_back(path);
 	}
 };
 
@@ -164,6 +178,14 @@ private:
 				vertex_tag != vertexes_list[i].get_tag() ? returned[vertexes_list[i].get_tag()] = make_pair(INFINITE,"NAN")
 				: returned[vertexes_list[i].get_tag()] = make_pair(0, "NAN");
 		return returned;
+	}
+	unordered_map<string, vector<vector<string>>> init_possible_paths() {
+		unordered_map<string, vector<vector<string>>> tmp;
+		vector<vector<string>> tmp_vect;
+		for (auto x : vertexes_list) {
+			tmp.insert(make_pair(x.get_tag(),tmp_vect));
+		}
+		return tmp;
 	}
 
 public:
@@ -266,7 +288,35 @@ public:
 		}
 		cout << NV_INDEX << endl;
 	}
-	
+
+	//The shortest path from the start vertex to end vertex
+	vector<int> shortest_path(string start_vertex, string end_vertex) {
+		int start_vertex_idx = vertex_index(start_vertex), end_vertex_idx;
+		vector<int> error_return;
+		if (start_vertex_idx != -1) {
+			end_vertex_idx = vertex_index(end_vertex);
+			if (end_vertex_idx != -1) {
+				if (vertexes_list[start_vertex_idx].get_shortest_paths().size() > 0) {
+					//Read Table
+					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
+				}
+				else {
+					//Load Table
+					shortest_paths("NAN", start_vertex_idx);
+
+					//Read Table
+					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
+				}
+			}
+			else {
+				return error_return;
+			}
+		}
+		else {
+			return error_return;
+		}
+	}
+
 	// 	Dijkstra shortest path. From vertex org to every other one (Vertex Tag)(Hash)
 	void hash_shortest_paths(string vertex, int vertex_idx = -1) {
 		//Check if vertex tag exists
@@ -324,32 +374,51 @@ public:
 		}
 	}
 
-	//The shortest path from the start vertex to end vertex
-	vector<int> shortest_path(string start_vertex, string end_vertex) {
-		int start_vertex_idx = vertex_index(start_vertex), end_vertex_idx;
-		vector<int> error_return;
-		if (start_vertex_idx != -1) {
-			end_vertex_idx = vertex_index(end_vertex);
-			if (end_vertex_idx != -1) {
-				if (vertexes_list[start_vertex_idx].get_shortest_paths().size() > 0) {
-					//Read Table
-					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
-				}
-				else {
-					//Load Table
-					shortest_paths("NAN", start_vertex_idx);
+	//All possible paths from source to destination
+	//https://www.geeksforgeeks.org/iterative-depth-first-traversal/
+	//https://www.geeksforgeeks.org/find-paths-given-source-destination/
+	void get_all_paths(string source, string destination) {
+		//Vertexes list index;
+		int source_idx = vertex_index(source);
 
-					//Read Table
-					return vertexes_list[start_vertex_idx].shortest_path(end_vertex_idx);
-				}
-			}
-			else {
-				return error_return;
-			}
+		vertexes_list[source_idx].add_possible_path_key(destination);
+		
+		//All vertexes marked as not visited
+		unordered_map<string, bool> visited ;
+
+		//Paths
+		vector<wt_pair> path(vertexes,make_pair(0,""));
+		int path_index = 0;
+
+		for (auto x : vertexes_list)
+			visited.insert(make_pair(x.get_tag(), false));
+
+		get_all_paths_utils(source, destination, visited, path, path_index, source_idx, 0);
+
+	}
+
+	//All possible paths from source to destination
+	void get_all_paths_utils(string source, string destination, unordered_map<string, bool> &visited
+	, vector<wt_pair> path, int &path_index, int source_idx, int source_w) {
+		//Mark the current node and store it in path[]
+		visited.at(source) = true;
+		path[path_index] = make_pair(source_w, source);
+		path_index++;
+
+		//Print - Save path
+		if (source == destination) {
+			vertexes_list[source_idx].add_possible_path(destination,path);
 		}
-		else {
-			return error_return;
+		else { //Current vertex is not destination
+
+			// Recur for all the vertices adjacent to current vertex
+			for(auto x: hash_graph.at(source))
+				if(!visited.at(x.second))
+					get_all_paths_utils(x.second, destination, visited, path, path_index, source_idx, x.first);
 		}
+		path_index--;
+		visited.at(source) = false;
+
 	}
 
 	//Update infotable 
@@ -482,7 +551,9 @@ int main()
 	graph.add_hash_edge("D", "B", 3);
 	graph.add_hash_edge("D", "B", 4);
 
-	vector<wt_pair> path = graph.hash_shortest_path("C", "A");
+
+
+	vector<wt_pair> path = graph.hash_shortest_path("A", "C");
 	int idx = 0;
 	for (auto x : path) {
 		idx == 0 ? cout << "Shortest Distance " << x.first << endl : (idx == path.size() - 1) ? cout << x.second <<"(" << x.first << ")" << endl
@@ -490,7 +561,18 @@ int main()
 		idx++;
 	}
 	cout << endl;
+	graph.get_all_paths("A", "C");
 	
+
+	for (auto x : graph.get_vertexes_list()[graph.vertex_index("A")].get_possible_paths()) {
+		cout << x.first << endl;
+		for (auto y : x.second) {
+			for (auto j : y)
+				j.second != "" ?  cout << " "<<j.first << " - " << j.second : cout<<" "<<endl;
+			cout << endl;
+		}
+	}
+
 	graph.print_hash_graph();
 
 
